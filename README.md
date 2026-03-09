@@ -559,7 +559,6 @@ formatted := models.FormatPrice(1234567) // Returns "1.234.567"
 - [x] Rate limiting for provider APIs
 - [x] Retry logic with exponential backoff
 - [ ] Database persistence for search history
-- [ ] Advanced caching (Redis)
+- [ ] ES implementation for better search
+- [ ] Persistent Caching (Redis)
 - [ ] Real-time price updates via WebSockets
-- [ ] SOAP transport implementation
-- [ ] gRPC transport implementation
