@@ -1,0 +1,399 @@
+openapi: 3.0.3
+info:
+  title: Flight Search & Aggregation API
+  description: |
+    A flight search and aggregation system that combines flight data from multiple airline APIs,
+    processes and filters results, and returns optimized search results.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@flightsearch.com
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.bookcabin.com/v1
+    description: Production server
+
+tags:
+  - name: Search
+    description: Flight search operations
+  - name: Health
+    description: Health check endpoints
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API is running and healthy
+      operationId: healthCheck
+      responses:
+        "200":
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  time:
+                    type: string
+                    format: date-time
+                    example: "2025-12-15T10:30:00Z"
+
+  /api/v1/search:
+    post:
+      tags:
+        - Search
+      summary: Search flights
+      description: |
+        Search for flights across multiple providers. Returns aggregated and normalized results
+        with filtering and sorting options.
+      operationId: searchFlights
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+            examples:
+              basic:
+                summary: Basic search
+                value:
+                  origin: "CGK"
+                  destination: "DPS"
+                  departure_date: "2025-12-15"
+              withFilters:
+                summary: Search with filters
+                value:
+                  origin: "CGK"
+                  destination: "DPS"
+                  departure_date: "2025-12-15"
+                  passengers: 2
+                  cabin_class: "economy"
+                  filters:
+                    max_price: 1500000
+                    max_stops: 1
+                    airlines: ["Garuda Indonesia", "Lion Air"]
+                  sort_by: "best_value"
+      responses:
+        "200":
+          description: Successful search response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    SearchRequest:
+      type: object
+      required:
+        - origin
+        - destination
+        - departure_date
+      properties:
+        origin:
+          type: string
+          description: Origin airport IATA code
+          example: "CGK"
+          minLength: 3
+          maxLength: 3
+        destination:
+          type: string
+          description: Destination airport IATA code
+          example: "DPS"
+          minLength: 3
+          maxLength: 3
+        departure_date:
+          type: string
+          format: date
+          description: Departure date (YYYY-MM-DD)
+          example: "2025-12-15"
+        return_date:
+          type: string
+          format: date
+          description: Return date for round-trip (YYYY-MM-DD)
+          example: "2025-12-20"
+          nullable: true
+        passengers:
+          type: integer
+          description: Number of passengers
+          minimum: 1
+          maximum: 9
+          default: 1
+          example: 1
+        cabin_class:
+          type: string
+          description: Cabin class
+          enum: [economy, premium_economy, business, first]
+          default: economy
+          example: "economy"
+        filters:
+          $ref: "#/components/schemas/FilterOptions"
+        sort_by:
+          type: string
+          description: Sort option
+          enum:
+            [
+              price_asc,
+              price_desc,
+              duration_asc,
+              duration_desc,
+              departure_asc,
+              departure_desc,
+              arrival_asc,
+              arrival_desc,
+              best_value,
+            ]
+          default: price_asc
+          example: "best_value"
+
+    FilterOptions:
+      type: object
+      properties:
+        max_price:
+          type: integer
+          description: Maximum price in IDR
+          example: 1500000
+        min_price:
+          type: integer
+          description: Minimum price in IDR
+          example: 500000
+        max_stops:
+          type: integer
+          description: Maximum number of stops
+          minimum: 0
+          example: 1
+        airlines:
+          type: array
+          description: Filter by airline names or codes
+          items:
+            type: string
+          example: ["Garuda Indonesia", "Lion Air"]
+        departure_after:
+          type: string
+          description: Departure after time (HH:MM)
+          example: "08:00"
+        departure_before:
+          type: string
+          description: Departure before time (HH:MM)
+          example: "18:00"
+        arrival_after:
+          type: string
+          description: Arrival after time (HH:MM)
+          example: "10:00"
+        arrival_before:
+          type: string
+          description: Arrival before time (HH:MM)
+          example: "22:00"
+        max_duration_mins:
+          type: integer
+          description: Maximum flight duration in minutes
+          example: 300
+
+    SearchResponse:
+      type: object
+      properties:
+        search_criteria:
+          $ref: "#/components/schemas/SearchCriteria"
+        metadata:
+          $ref: "#/components/schemas/Metadata"
+        flights:
+          type: array
+          items:
+            $ref: "#/components/schemas/Flight"
+
+    SearchCriteria:
+      type: object
+      properties:
+        origin:
+          type: string
+          example: "CGK"
+        destination:
+          type: string
+          example: "DPS"
+        departure_date:
+          type: string
+          example: "2025-12-15"
+        passengers:
+          type: integer
+          example: 1
+        cabin_class:
+          type: string
+          example: "economy"
+
+    Metadata:
+      type: object
+      properties:
+        total_results:
+          type: integer
+          example: 15
+        providers_queried:
+          type: integer
+          example: 4
+        providers_succeeded:
+          type: integer
+          example: 4
+        providers_failed:
+          type: integer
+          example: 0
+        search_time_ms:
+          type: integer
+          example: 285
+        cache_hit:
+          type: boolean
+          example: false
+
+    Flight:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "QZ7250_AirAsia"
+        provider:
+          type: string
+          example: "AirAsia"
+        airline:
+          $ref: "#/components/schemas/AirlineInfo"
+        flight_number:
+          type: string
+          example: "QZ7250"
+        departure:
+          $ref: "#/components/schemas/DepartureInfo"
+        arrival:
+          $ref: "#/components/schemas/ArrivalInfo"
+        duration:
+          $ref: "#/components/schemas/DurationInfo"
+        stops:
+          type: integer
+          example: 1
+        price:
+          $ref: "#/components/schemas/PriceInfo"
+        available_seats:
+          type: integer
+          example: 88
+        cabin_class:
+          type: string
+          example: "economy"
+        aircraft:
+          type: string
+          nullable: true
+          example: "Boeing 737-800"
+        amenities:
+          type: array
+          items:
+            type: string
+          example: ["wifi", "meal"]
+        baggage:
+          $ref: "#/components/schemas/BaggageInfo"
+        best_value_score:
+          type: number
+          format: float
+          example: 0.75
+
+    AirlineInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          example: "AirAsia"
+        code:
+          type: string
+          example: "QZ"
+
+    DepartureInfo:
+      type: object
+      properties:
+        airport:
+          type: string
+          example: "CGK"
+        city:
+          type: string
+          example: "Jakarta"
+        datetime:
+          type: string
+          format: date-time
+          example: "2025-12-15T15:15:00+07:00"
+        timestamp:
+          type: integer
+          example: 1734246900
+        terminal:
+          type: string
+          example: "3"
+
+    ArrivalInfo:
+      type: object
+      properties:
+        airport:
+          type: string
+          example: "DPS"
+        city:
+          type: string
+          example: "Denpasar"
+        datetime:
+          type: string
+          format: date-time
+          example: "2025-12-15T20:35:00+08:00"
+        timestamp:
+          type: integer
+          example: 1734267300
+        terminal:
+          type: string
+          example: "I"
+
+    DurationInfo:
+      type: object
+      properties:
+        total_minutes:
+          type: integer
+          example: 260
+        formatted:
+          type: string
+          example: "4h 20m"
+
+    PriceInfo:
+      type: object
+      properties:
+        amount:
+          type: integer
+          example: 485000
+        currency:
+          type: string
+          example: "IDR"
+
+    BaggageInfo:
+      type: object
+      properties:
+        carry_on:
+          type: string
+          example: "Cabin baggage only"
+        checked:
+          type: string
+          example: "Additional fee"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Invalid request parameters"
+        message:
+          type: string
+          example: "Missing required field: origin"
